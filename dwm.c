@@ -284,6 +284,7 @@ static void tile(Monitor *);
 static void togglebar(const Arg *arg);
 static void togglefloating(const Arg *arg);
 static void togglescratch(const Arg *arg);
+static void togglefullscreen(const Arg *arg); 
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unfocus(Client *c, int setfocus);
@@ -2236,6 +2237,14 @@ togglescratch(const Arg *arg)
 		selmon->tagset[selmon->seltags] |= scratchtag;
 		spawn(&sparg);
 	}
+}
+
+void
+togglefullscreen(const Arg *arg) {
+    if (!selmon->sel)
+        return;
+
+    setfullscreen(selmon->sel, !selmon->sel->isfullscreen);
 }
 
 void
