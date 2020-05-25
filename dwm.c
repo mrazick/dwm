@@ -216,7 +216,7 @@ static void detach(Client *c);
 static void detachstack(Client *c);
 static Monitor *dirtomon(int dir);
 static void drawbar(Monitor *m);
-static int drawstatus(Monitor *m);
+static int drawstatus(Monitor *m, int stw);
 static void drawbars(void);
 static void enternotify(XEvent *e);
 static void expose(XEvent *e);
@@ -950,8 +950,7 @@ drawbar(Monitor *m)
 	/* draw status first so it can be overdrawn by tags later */
 	if (m == selmon) { /* status is only drawn on selected monitor */
 		drw_setscheme(drw, scheme[SchemeNorm]);
-		sw = drawstatus(m);
-		drw_text(drw, m->ww - sw - stw, 0, sw, bh, lrpad / 2 - 2, stext, 0);
+		sw = drawstatus(m, stw);
 	}
 
 	resizebarwin(m);
@@ -1010,7 +1009,7 @@ drawbar(Monitor *m)
 }
 
 int
-drawstatus(Monitor* m)
+drawstatus(Monitor* m, int stw)
 {
         char status[256];
         int i, n = strlen(stext), cn = 0;
@@ -1037,7 +1036,7 @@ drawstatus(Monitor* m)
 
                 drw_setscheme(drw, nxtscheme);
                 w = TEXTW(bs+2);
-                drw_text(drw, x - w, 0, w, bh, lrpad / 2, bs+2, 0);
+                drw_text(drw, x - w - stw, 0, w, bh, lrpad / 2, bs+2, 0);
                 x -= w;
 
                 bp = *bs;
