@@ -936,7 +936,7 @@ dirtomon(int dir)
 void
 drawbar(Monitor *m)
 {
-	int x, w, wt, sw = 0;
+	int x, w, wt, sw = 0, stw = 0;
 	unsigned int i, occ = 0, urg = 0, n = 0;
 	plw = drw->fonts->h / 2 + 1;
 	Client *c;
@@ -951,6 +951,7 @@ drawbar(Monitor *m)
 	if (m == selmon) { /* status is only drawn on selected monitor */
 		drw_setscheme(drw, scheme[SchemeNorm]);
 		sw = drawstatus(m);
+		drw_text(drw, m->ww - sw - stw, 0, sw, bh, lrpad / 2 - 2, stext, 0);
 	}
 
 	resizebarwin(m);
@@ -988,7 +989,7 @@ drawbar(Monitor *m)
 	drw_setscheme(drw, scheme[SchemeNorm]);
 	x = drw_text(drw, x, 0, w, bh, lrpad / 2, m->ltsymbol, 0);
 
-	if ((m->ww - sw - x) > bh && n > 0) {
+	if ((m->ww - sw - stw - x) > bh && n > 0) {
                 wt = (m->ww - sw - x) / n - 2 * plw;
                 for (c = m->clients; c; c = c->next) {
                         if (!ISVISIBLE(c)) continue; /* only show titles of windows on current tag */
@@ -1005,7 +1006,7 @@ drawbar(Monitor *m)
                 drw_setscheme(drw, scheme[SchemeNorm]);
                 drw_rect(drw, x, 0, m->ww - sw - x, bh, 1, 1);
         }
-        drw_map(drw, m->barwin, 0, 0, m->ww, bh);
+        drw_map(drw, m->barwin, 0, 0, m->ww - stw, bh);
 }
 
 int
@@ -1485,7 +1486,7 @@ monocle(Monitor *m)
 	if (n > 0) /* override layout symbol */
 		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
 	for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
-		resize(c, m->wx + padpx, m->wy + padpx, m->ww - 2 * padpx - 2 * c->bw, m->wh - 2 * padpx - 2 * c->bw, 0);
+		resize(c, m->wx + gappih, m->wy + gappih, m->ww - 2 * gappih - 2 * c->bw, m->wh - 2 * gappih - 2 * c->bw, 0);
 }
 
 void

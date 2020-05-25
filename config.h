@@ -34,6 +34,14 @@ static char *colors[][3] = {
     [SchemeNorm] = {normfgcolor, normbgcolor, normbordercolor},
     [SchemeSel] = {selfgcolor, selbgcolor, selbordercolor},
 };
+static const char *statuscolors[][3] = {
+        { selbordercolor, normfgcolor, normbgcolor }, /* dark */
+       // { color[Gray1], color[Gray3], color[Gray4] }, /* light */
+       // { color[Gray1], color[LightBlue], color[Blue] },
+       // { color[Gray1], color[LightRed], color[Red] },
+       // { color[Gray1], color[LightGreen], color[Green] },
+       // { color[Gray1], color[Yellow], color[Yellow] },
+};
 
 typedef struct {
   const char *name;
