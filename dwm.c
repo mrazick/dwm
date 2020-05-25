@@ -96,7 +96,7 @@
 
 /* enums */
 enum { CurNormal, CurResize, CurMove, CurLast }; /* cursor */
-enum { SchemeNorm, SchemeSel, SchemeTitle, SchemeTitleSel }; /* color schemes */
+enum { SchemeNorm, SchemeSel }; /* color schemes */
 enum { NetSupported, NetWMName, NetWMState, NetWMCheck,
        NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
        NetWMFullscreen, NetActiveWindow, NetWMWindowType,
@@ -216,7 +216,6 @@ static void detach(Client *c);
 static void detachstack(Client *c);
 static Monitor *dirtomon(int dir);
 static void drawbar(Monitor *m);
-static int drawstatus(Monitor *m, int stw);
 static void drawbars(void);
 static void enternotify(XEvent *e);
 static void expose(XEvent *e);
@@ -332,7 +331,7 @@ static const char broken[] = "broken";
 static char stext[256];
 static int screen;
 static int sw, sh;           /* X display screen geometry width, height */
-static int bh, plw, blw = 0; /* bar geometry */
+static int bh, blw = 0;      /* bar geometry */
 static int enablegaps = 1;   /* enables gaps, used by togglegaps */
 static int lrpad;            /* sum of left and right padding for text */
 static int (*xerrorxlib)(Display *, XErrorEvent *);
@@ -359,7 +358,6 @@ static int restart = 0;
 static int running = 1;
 static Cur *cursor[CurLast];
 static Clr **scheme;
-static Clr **statusscheme;
 static Display *dpy;
 static Drw *drw;
 static Monitor *mons, *selmon;
@@ -576,16 +574,10 @@ buttonpress(XEvent *e)
 		focus(NULL);
 	}
 	if (ev->window == selmon->barwin) {
-		i = 0; x = plw;
-		unsigned int occ = 0;
-		for(c = m->clients; c; c = c->next)
-			occ |= c->tags;
-		do {
-			/* do not reserve space for vacant tags */
-			if(!(occ & 1 << i || m->tagset[m->seltags] & 1 << i))
-				continue;
-			x += TEXTW(tags[i]) + plw;
-		} while (ev->x >= x && ++i < LENGTH(tags));
+		i = x = 0;
+		do
+			x += TEXTW(tags[i]);
+		while (ev->x >= x && ++i < LENGTH(tags));
 		if (i < LENGTH(tags)) {
 			click = ClkTagBar;
 			arg.ui = 1 << i;
@@ -936,11 +928,11 @@ dirtomon(int dir)
 void
 drawbar(Monitor *m)
 {
-	int x, w, wt, sw = 0, stw = 0;
-	unsigned int i, occ = 0, urg = 0, n = 0;
-	plw = drw->fonts->h / 2 + 1;
+	int x, w, sw, stw = 0;
+	int boxs = drw->fonts->h / 9;
+	int boxw = drw->fonts->h / 6 + 2;
+	unsigned int i, occ = 0, urg = 0;
 	Client *c;
-        Clr *prevscheme, *nxtscheme;
 
 
 	if(showsystray && m == systraytomon(m))
@@ -950,108 +942,43 @@ drawbar(Monitor *m)
 	/* draw status first so it can be overdrawn by tags later */
 	if (m == selmon) { /* status is only drawn on selected monitor */
 		drw_setscheme(drw, scheme[SchemeNorm]);
-		sw = drawstatus(m, stw);
+		sw = TEXTW(stext) - lrpad / 2 + 2; /* 2px right padding */
+		drw_text(drw, m->ww - sw - stw, 0, sw, bh, lrpad / 2 - 2, stext, 0);
 	}
 
 	resizebarwin(m);
 	for (c = m->clients; c; c = c->next) {
-                if (ISVISIBLE(c)) n++;
 		occ |= c->tags;
 		if (c->isurgent)
 			urg |= c->tags;
 	}
 	x = 0;
-
-        prevscheme = scheme[SchemeNorm];
 	for (i = 0; i < LENGTH(tags); i++) {
-		/* do not draw vacant tags */
-		if(!(occ & 1 << i || m->tagset[m->seltags] & 1 << i))
-			continue;
 		w = TEXTW(tags[i]);
-		drw_settrans(drw, prevscheme, (nxtscheme = scheme[m->tagset[m->seltags] & 1 << i ? SchemeSel : SchemeNorm]));
-                drw_arrow(drw, x, 0, plw, bh, 1, 0);
-                x += plw;
-
-                drw_setscheme(drw, nxtscheme);
-                drw_text(drw, x, 0, w, bh, lrpad / 2, tags[i], urg & 1 << i);
-                x += w;
-
-                prevscheme = nxtscheme;
- 	}
-        nxtscheme = scheme[SchemeNorm];
-
-        drw_settrans(drw, prevscheme, nxtscheme);
-        drw_arrow(drw, x, 0, plw, bh, 1, 0);
-        x += plw;
-
+		drw_setscheme(drw, scheme[m->tagset[m->seltags] & 1 << i ? SchemeSel : SchemeNorm]);
+		drw_text(drw, x, 0, w, bh, lrpad / 2, tags[i], urg & 1 << i);
+		if (occ & 1 << i)
+			drw_rect(drw, x + boxs, boxs, boxw, boxw,
+				m == selmon && selmon->sel && selmon->sel->tags & 1 << i,
+				urg & 1 << i);
+		x += w;
+	}
 	w = blw = TEXTW(m->ltsymbol);
 	drw_setscheme(drw, scheme[SchemeNorm]);
 	x = drw_text(drw, x, 0, w, bh, lrpad / 2, m->ltsymbol, 0);
 
-	if ((m->ww - sw - stw - x) > bh && n > 0) {
-                wt = (m->ww - sw - x) / n - 2 * plw;
-                for (c = m->clients; c; c = c->next) {
-                        if (!ISVISIBLE(c)) continue; /* only show titles of windows on current tag */
-			drw_setscheme(drw, c == m->sel ? scheme[SchemeTitleSel] : scheme[SchemeTitle]);
-			drw_text(drw, x + plw, 0, wt, bh, lrpad / 2, c->name, 0);
-
-                        drw_settrans(drw, c == m->sel ? scheme[SchemeTitleSel] : scheme[SchemeTitle], scheme[SchemeNorm]);
-                        drw_arrow(drw, x, 0, plw, bh, 0, 1);
-                        drw_arrow(drw, x + wt + plw, 0, plw, bh, 1, 1);
-
-                        x += wt + 2 * plw;
-                }
-        } else { /* when empty or not enough space to draw, clear out the title space */
-                drw_setscheme(drw, scheme[SchemeNorm]);
-                drw_rect(drw, x, 0, m->ww - sw - x, bh, 1, 1);
-        }
-        drw_map(drw, m->barwin, 0, 0, m->ww - stw, bh);
-}
-
-int
-drawstatus(Monitor* m, int stw)
-{
-        char status[256];
-        int i, n = strlen(stext), cn = 0;
-        int x = m->ww, w = 0;
-        char *bs, bp = '|';
-        Clr *prevscheme = statusscheme[0], *nxtscheme;
-
-        strcpy(status, stext);
-
-        for (i = n, bs = &status[n-1]; i >= 0; i--, bs--) {
-            if (*bs == '<' || *bs == '/' || *bs == '\\' || *bs == '|') { /* block start */
-                cn = ((int) *(bs+1)) - 1;
-
-                if (cn < LENGTH(statuscolors)) {
-                    drw_settrans(drw, prevscheme, (nxtscheme = statusscheme[cn]));
-                } else {
-                    drw_settrans(drw, prevscheme, (nxtscheme = statusscheme[0]));
-                }
-
-                if (bp != '|') {
-                    drw_arrow(drw, x - plw, 0, plw, bh, bp == '\\' ? 1 : 0, bp == '<' ? 0 : 1);
-                    x -= plw;
-                }
-
-                drw_setscheme(drw, nxtscheme);
-                w = TEXTW(bs+2);
-                drw_text(drw, x - w - stw, 0, w, bh, lrpad / 2, bs+2, 0);
-                x -= w;
-
-                bp = *bs;
-                *bs = 0;
-                prevscheme = nxtscheme;
-            }
-        }
-        if (bp != '|') {
-            drw_settrans(drw, prevscheme, scheme[SchemeNorm]);
-            drw_arrow(drw, x - plw, 0, plw, bh, bp == '\\' ? 1 : 0, bp == '<' ? 0 : 1);
-            drw_rect(drw, x - 2 * plw, 0, plw, bh, 1, 1);
-            x -= plw * 2;
-        }
-
-        return m->ww - x;
+	if ((w = m->ww - sw - stw - x) > bh) {
+		if (m->sel) {
+			drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]);
+			drw_text(drw, x, 0, w, bh, lrpad / 2, m->sel->name, 0);
+			if (m->sel->isfloating)
+				drw_rect(drw, x + boxs, boxs, boxw, boxw, m->sel->isfixed, 0);
+		} else {
+			drw_setscheme(drw, scheme[SchemeNorm]);
+			drw_rect(drw, x, 0, w, bh, 1, 1);
+		}
+	}
+	drw_map(drw, m->barwin, 0, 0, m->ww - stw, bh);
 }
 
 void
@@ -1485,7 +1412,7 @@ monocle(Monitor *m)
 	if (n > 0) /* override layout symbol */
 		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
 	for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
-		resize(c, m->wx + gappih, m->wy + gappih, m->ww - 2 * gappih - 2 * c->bw, m->wh - 2 * gappih - 2 * c->bw, 0);
+		resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, 0);
 }
 
 void
@@ -2114,9 +2041,6 @@ setup(void)
 	scheme = ecalloc(LENGTH(colors), sizeof(Clr *));
 	for (i = 0; i < LENGTH(colors); i++)
 		scheme[i] = drw_scm_create(drw, colors[i], 3);
-	statusscheme = ecalloc(LENGTH(statuscolors), sizeof(Clr *));
-	for (i = 0; i < LENGTH(statuscolors); i++)
-		statusscheme[i] = drw_scm_create(drw, statuscolors[i], 3);
 	/* init system tray */
 	updatesystray();
 	/* init bars */
@@ -2240,33 +2164,32 @@ tagmon(const Arg *arg)
 void
 tile(Monitor *m)
 {
-	unsigned int i, n, h, r, g = 0, mw, my, ty;
+	unsigned int i, n, h, r, oe = enablegaps, ie = enablegaps, mw, my, ty;
 	Client *c;
 
 	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
 	if (n == 0)
 		return;
 
-	// if (smartgaps == n) {
-	// 	oe = 0; // outer gaps disabled
-	// }
+	if (smartgaps == n) {
+		oe = 0; // outer gaps disabled
+	}
 
-	if(n > m->nmaster)
-		mw = m->nmaster ? (m->ww - (g = gappih) - 2*gappih) * m->mfact : 0;
+	if (n > m->nmaster)
+		mw = m->nmaster ? (m->ww + m->gappiv*ie) * m->mfact : 0;
 	else
-		mw = m->ww - 2*gappih;
-	for(i = 0, my = ty = gappih, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
-		if(i < m->nmaster) {
+		mw = m->ww - 2*m->gappov*oe + m->gappiv*ie;
+	for (i = 0, my = ty = m->gappoh*oe, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
+		if (i < m->nmaster) {
 			r = MIN(n, m->nmaster) - i;
-			h = (m->wh - my - gappih * (r - 1) - 2*gappih) / r;
-			resize(c, m->wx + gappih, m->wy + my, mw - (2*c->bw), h - (2*c->bw), False);
-			my += HEIGHT(c) + gappih;
-		}
-		else {
+			h = (m->wh - my - m->gappoh*oe - m->gappih*ie * (r - 1)) / r;
+			resize(c, m->wx + m->gappov*oe, m->wy + my, mw - (2*c->bw) - m->gappiv*ie, h - (2*c->bw), 0);
+			my += HEIGHT(c) + m->gappih*ie;
+		} else {
 			r = n - i;
-			h = (m->wh - ty - gappih * (r - 1) - 2*gappih) / r;
-			resize(c, m->wx + gappih + mw + g, m->wy + ty, m->ww - 2*gappih - mw - g - (2*c->bw), h - (2*c->bw), False);
-			ty += HEIGHT(c) + gappih;
+			h = (m->wh - ty - m->gappoh*oe - m->gappih*ie * (r - 1)) / r;
+			resize(c, m->wx + mw + m->gappov*oe, m->wy + ty, m->ww - mw - (2*c->bw) - 2*m->gappov*oe, h - (2*c->bw), 0);
+			ty += HEIGHT(c) + m->gappih*ie;
 		}
 }
 
