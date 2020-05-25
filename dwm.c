@@ -2252,21 +2252,21 @@ tile(Monitor *m)
 	}
 
 	if(n > m->nmaster)
-		mw = m->nmaster ? (m->ww - (g = gappx) - 2*gappih) * m->mfact : 0;
+		mw = m->nmaster ? (m->ww - (g = gappih) - 2*gappih) * m->mfact : 0;
 	else
 		mw = m->ww - 2*gappih;
 	for(i = 0, my = ty = gappih, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
 		if(i < m->nmaster) {
 			r = MIN(n, m->nmaster) - i;
-			h = (m->wh - my - gappx * (r - 1) - 2*gappih) / r;
+			h = (m->wh - my - gappih * (r - 1) - 2*gappih) / r;
 			resize(c, m->wx + gappih, m->wy + my, mw - (2*c->bw), h - (2*c->bw), False);
-			my += HEIGHT(c) + gappx;
+			my += HEIGHT(c) + gappih;
 		}
 		else {
 			r = n - i;
-			h = (m->wh - ty - gappx * (r - 1) - 2*gappih) / r;
+			h = (m->wh - ty - gappih * (r - 1) - 2*gappih) / r;
 			resize(c, m->wx + gappih + mw + g, m->wy + ty, m->ww - 2*gappih - mw - g - (2*c->bw), h - (2*c->bw), False);
-			ty += HEIGHT(c) + gappx;
+			ty += HEIGHT(c) + gappih;
 		}
 }
 
